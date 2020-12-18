@@ -1,0 +1,50 @@
+on:
+  push:
+    tags:
+    - '*'
+    branches:
+    - '*'
+  pull_request:
+    branches:
+    - '*'
+  # repository_dispatch is a newer github-actions feature that will allow building from triggers other than code merge/PR
+  repository_dispatch:
+    types: [build]
+
+name: Build EmuConfigurator
+jobs:
+  build:
+    timeout-minutes: 40
+    continue-on-error: true
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+        - node-version: 11.x
+    steps:
+      - name: git checkout
+        uses: actions/checkout@master
+      - name: yarn install
+        run: yarn install
+      - name: yarn gulp clean-release
+        run: yarn gulp clean-release
+      - name: yarn gulp release --linux64
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+        run: |
+          sudo apt install -y rpm
+          yarn gulp release --linux64
+      - name: yarn gulp release --osx64
+        if: ${{ startsWith(matrix.os, 'macos') }}
+        run: |
+          yarn gulp release --osx64
+      - name: yarn gulp release  --win32 --win64
+        if: ${{ startsWith(matrix.os, 'windows') }}
+        run: yarn gulp release  --win32 --win64
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@master
+        with:
+          name: EmuConfigurator-${{ github.ACTOR }}-${{ github.run_number }}
+          path: release/*
